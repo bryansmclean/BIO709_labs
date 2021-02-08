@@ -1,0 +1,186 @@
+---
+title: "MULTIPLE LINEAR REGRESSION IN R"
+author: "Bryan McLean"
+date: "January 2021"
+output: html_document
+---
+
+
+### A bit of background...
+
+The research article titled “*Beauty in the classroom: instructors’ pulchritude and putative pedagogical productivity.*” found that instructors who are viewed to be better looking receive higher instructional ratings. (Daniel S. Hamermesh, Amy Parker, Economics of Education Review, Volume 24, Issue 4, August 2005, Pages 369-376, ISSN 0272-7757, 10.1016/j.econedurev.2004.07.013.)
+
+The goal of this lab is to re-test the multiple - and perhaps interactive - predictors of professor evaluation. We will pay special attention to constructing an optimal model in which all variables, their statistical properties, etc meet the main assumptions of linear regression, thus giving us high confidence in our conclusions.\
+
+## PRELIMINARIES
+
+### Load the data into R
+
+The data were gathered from end-of-semester student evaluations for a large sample of professors from the University of Texas at Austin. In addition, six students rated the professors’ physical appearance. (This is aslightly modified version of the original data set that was released as part of the replication data for Data Analysis Using Regression and Multilevel/Hierarchical Models (Gelman and Hill 2007).) 
+
+```{r}
+setwd("/Users/mclean/Box/UNCG_Teaching/Biostats_II/labs/2_Multiple-regression_Transforming-data_Model-checking")
+load("./data/evals.rdata")
+head(evals)
+```
+
+Check your data - there should be 463 rows (course evaluations) and 21 evaluation statistics. In addition, load the description of evaluation statistics for your reference. This is a tab-delimted .txt file and can be imported using the read.delim() function.
+
+```{r}
+eval.vars <- read.delim("./data/eval-variables.txt")
+eval.vars
+```
+
+### Examine the professor scores
+
+First, plot a histogram of these scores to examine the data distribution. The first column in the data matrix is the professor score (see, e.g., the eval.vars table), and each score is a single course average:
+
+```{r}
+hist(evals$score)
+```
+
+You can also use the summary() function executed on a single column (not matrix-wide) to summarize the scores.
+
+```{r}
+summary(evals$score) # NOTE: this provides the values of all four *quartiles*, plus the min and max, printed
+```
+
+\
+The distribution of scores in the histogram is what is called **"left-skewed"** or **negative-skewed**, meaning it includes a longer tail of data at lower values. This suggests most students tend to rate their courses in a positive manner. This may be expected, because the evaluations were at the end of the semester in which most students are doing well enough not to drop the class. Therefore, there is a positive reinforcement between students scoring well their courses, because they are doing well in their courses.\
+
+Based on previous lectures in the course, you should immediately recognize this as a potential contributor to non-linearity in our model, and thus a candidate for variable transformation. We will return to transofmrations below.\
+
+### Visualize how Gender and Rank impact scores
+
+If we so much as think that professor scores could be based on factors other than teaching aptitude (gasp), two such factors to explore may be gender and rank (tenured, tenure-track, etc). The goal of this short section is to examine the distributions of the scores within each of these levels, PLUS how they may be related.
+
+```{r}
+boxplot(score ~ gender, evals) # NOTE: the call to boxplot() can take the form of a formula, as in lm()
+```
+
+```{r}
+boxplot(score ~ rank, evals)
+```
+
+It seems that evaluation scores *may* vary with BOTH gender and rank. To visualize this quickly, give boxplot() a multi-level formula, which will tell R plot out all group-wise combinations for us automatically.\
+
+```{r}
+boxplot(score ~ gender + rank, evals)
+```
+
+Good, but the default names for group combinations dont all fit on the X axis. We could fix these if desired, but for brevity lets just quickly choose data subsets (here, gender) to plot in known colors.
+
+```{r}
+# Use the subset() argument within boxplot()
+boxplot(score ~ gender + rank, evals,
+        subset = 
+            gender == c('female','male'), 
+            col = c('red','blue')
+        )
+```
+
+## QUANTIFY GROUP EFFECTS USING ANOVA
+
+### Analysis of Variance (ANOVA)
+
+Up to now, no test of group differences has been performed. However, the boxplots above do suggest evaluation scores change with gender and rank. 
+
+BUT - take a look back at the last boxplot. It also suggests that scores of different ranks change in a **sex-specific** way. As faculty increase in rank from teaching faculty to tenured faculty, median evaluations seem to increase for females (red), Conversely, it they see, to decrease for males (blue). This indicates an *interaction* between terms may exist.
+
+**Analysis of Variances (or, ANOVA)** is a statistical technique that tests for potential differences in a dependent variable using a nominal (or, group)-level variable having 2 or more categories, and was developed by Ronald Fisher in 1918. This test extends the well-known t-test and z-test which have the problem of only allowing the grouping level variable to have two categories. The ANOVA is based on the law of total variance, where the observed variance in a particular variable is partitioned into different sources of variation. You can think of ANOVA as a way to partition total variance among two or more groups, depending on the test used:
+
+A **one-way** ANOVA has just one independent grouping variable (i.e., gender).\
+A **two-way** ANOVA (also called a factorial ANOVA) can accommodate two grouping variables (i.e., gender AND rank).\
+
+In our case, a two-way ANVOA is the proper test for asking whether professor evaluations are related to both gender and rank, and it will also allow us to model an interaction effect (where the direction of change in evaluation with rank *depends* on gender). Interactions between main effects are modeled in R using an **asterisk**.
+
+```{r}
+m1 <- aov(score ~ gender * rank, data = evals) 
+# NOTE: this is simpler than, but identical to, this: (gender + rank + (gender*rank))
+summary(m1)
+```
+
+The output of summary() used on an aov() object is similar to tables we have seen before. Review this table and locate the three model predictors (rows). For each is reported the amount of total variance they explain (Sum Sq), the *standardized* total variance they explain (Mean Sq), and the F value and associated p value. The last row is the residual variation, which you can see is high (suggesting our model still leaves much variance unexplained).
+
+Remember that, in ANOVA, we are essentially partitioning variance among model components, such that:\
+
+total sum of squares = treatment sum of squares (Sum Sq) + sum of squares of the residual error (Residual Sum Sq)\
+
+### Interpreting group and interaction effects
+
+While the model summary tell us that all three effects (gender, rank, and their interaction) contribute significantly to the total variance in evaluation scores, its harder to tell from this table what *direction* the effects are. For example, are females ranked *higher* or *lower* than males, etc? To get this information, R has a handy function called model.tables() that reports more detailed information and is well-suited for ANOVA.
+
+```{r}
+model.tables(m1)
+```
+
+Let’s consider this more detailed model table variable by variable. (Note for each variable, "rep" signifies the group sample size)
+
+**1)** First, the effect of gender is reported - *specifically*, the magnitude and direction of gender scores relative to the population mean. You can see that females were scored slightly lower overall than males. Take a look back at the first boxplot you created to confirm this.
+
+**2)** Second, the effect of rank is reported - *specifically*, the magnitude and direction of scores at different ranks relative to the population mean. Teaching faculty score highest on average, while tenured faculty score lowest. Again, take a look at the second boxplot you created above. 
+
+**3)** BUT, the interaction effect (gender * rank) is where our results get interesting. You can look through this table and find, for *each* combination of gender and rank, how that group scores relative to the global mean. Take a minute to scan this table. At what rank do females score highest? At what rank do males score highest? Again, confirm with the colored boxplot above. \
+
+## MULTIPLE LINEAR REGRESSION
+
+### Model construction
+
+The goal of this section is to construct a linear regression with multiple predictors (this is what we mean by "multiple regression"). Further, we will  diagnose the model object. This will serve as a quick refresher on linear model construction, but expand our model constrution and diagnostics skills beyond the bivariate case. Our model will contain both **categorical** and **continuous** data as predictors, but R's linear modeling framework can handle either or a combination of the two.
+
+OK. Our work above suggests that students at UT Austin evaluate their professors in ways that are related to gender and rank. This doesn't automatically mean that bias exists, but there are obvious negative implications if the apparent sexism and ageism are real. We need to evaluate a model where age is explicitly included as a predictor variable (so we can understand whether the effect is related to age, or rank, or both). Our work thus far also hints that some evaluations could be related to perceived beauty of the professor, but this is purely speculative if we don't include a beauty metric in the model too. 
+
+To answer these questions, construct a linear model using the lm() function in R that contains predictors of **age**, **rank**, **gender** and **perceived beauty**. (NOTE: we'll not include any interaction effects yet) \
+
+```{r}
+m2 <- lm(score ~ age + rank + gender + bty_avg, data = evals)
+summary(m2)
+```
+
+You should notice right away that model tables from multiple regressions can get busy - and we dont even have any interaction effects in our model. Still, take a look a which variables are significant predictors (p value), and the direction (sign of the estimated slope) and magnitude (t value) of the relationship. Is rank or age (or both) a significant predictor? Recall that two variables are categorial; the effects that are listed actually represent between-group comparisons for the first group in our sample and the listed group (e.g., "ranktenure_track" is the difference between "rank_teaching" and "ranktenure_track").
+
+Now, use the plot() function applied to the model object to examine the fit of this model on your own. Remember that four plots are produced sequentially, but you can use the par() function and mfrow() argument to plot all 4 in one plot window, which can be very helpful. A look at the first two plots (residuals vs. fitted values, and the Q-Q plot) strongly suggests some assumptions are violated; specifically, the assumption of normality and equal variance. Our next goal is to try and assess whether a transformation of one or more variables can improve this model fit.
+
+We have one dependent (score) and two independent (age, beauty score) variables that are continuous and may be candidates for transfomation. By way of reminder, this is what their individual distributions look like:
+
+```{r}
+par(mfrow = c(1,3))
+hist(evals$score, ylim = c(0,90)) # Use a ylim range to make sure all plots are on identical axes.
+hist(evals$age, ylim = c(0,90))
+hist(evals$bty_avg, ylim = c(0,90))
+```
+
+
+## THIS WEEK'S ASSIGNMENT
+
+At this point, you should be familiar with the syntax and workflow necessary to set up a multiple regression in R, perform model diagnostics, and transform individual variables for analysis to try and better meet the three major assumptions of LINEARITY, CONSTANT VARIABILITY (homoscedasticity), and NORMALITY.
+
+**Your assignment is to try and address model violations that may exist in the 3 *continuous* variables in the model, re-run the model, and interpret the results.** \
+\
+
+#### **DO THE FOLLOWING:**
+**1. Apply a transform to the three continuous variables (scores, age, and bty_avg) that are plotted above**.\
+You should refer back to the end of our previous lecture's notes to identify which transformations might be best for specific types of skew. Play around with a few transformations variable-by-variable, plot the histograms, and choose a final transformation for each variable to gets us closest to normality. Note that there is no perfect answer, and we arent employing explicit tests for normality (which do exist), but just trying to improve the model fit relative to using raw, untransformed data.\
+\
+**2. Create a 3-panel (1x3) plot like that above that shows histograms for the transformed variables** (or, untransformed ones if you decide that no simple transformation looks appropriate, which is allowed (!)). This should contain:\
+    **a).** a simple histogram for each variable\
+    **b).** a common Y axis (i.e., identical among the variables), to aid in comparison\
+    **c).** plot titles that include the variable name AND the transformation (e.g., "Log-transformed Evaluation Score")\
+(hint: to set up this plot, use the par() function prior to plotting and the mfrow() argument).\
+\
+**3. Replace the raw variables in model m2 above with your preferred transformations, and construct a new multiple regression model with just main effects (no interactions)**.\
+Use the capture.output() function to save the full model SUMMARY as a .txt file. Remember to name this file according to our convention listed in Canvas assignments.\
+\
+**4. Create a 4-panel (2x2) diagnostics plot that shows the standard output of plot() applied to the model object based on transformed data.**.\
+This should be similar to the one we created previously in this lab and contain the residuals vs. fitted, Q-Q plot, etc.\
+\
+**5. Finally, run a more complex linear model that includes interactions (since we know some probably exist; e.g., between gender and rank). Be sure to use the transformed data from (3) above**.\
+This time , include all pairwise interactions among AGE, RANK, and GENDER. The bty_avg variable should not be included in any interaction, and thus it will exist only once in the model summary. Use the capture.output() function to save the full model SUMMARY as a .txt file. Remember to name this file according to our convention listed in Canvas assignments.\
+\
+\
+\
+\
+\
+\
+rmarkdown::render('./2_Multiple-regression_Transforming-Data_Model-checking.Rmd')
+
