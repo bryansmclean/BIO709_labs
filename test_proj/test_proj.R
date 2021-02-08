@@ -13,3 +13,8 @@ write(avg_x,'avg_x.txt')
 plot(x, y)
 abline(a, b, col='red')
 dev.print(pdf,"toy_plot.pdf")
+
+asdf
+asdf
+test test test
+
