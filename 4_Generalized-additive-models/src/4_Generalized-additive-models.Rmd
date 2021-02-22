@@ -1,0 +1,16 @@
+---
+title: "GENERALIZED ADDITIVE MODELS IN R"
+author: "Bryan McLean"
+date: "February 2021"
+output: html_document
+---
+
+### A bit of background...
+
+Oure lecture on generalized additive models (GAMs) that these tools provide a robust modeling alternative when we encounter non-normal data distributions. Transformations on non-normal data are possible in some scenarios, but very complex transformations may be required which can negatively affect our ability to interpret results. The idea of GLM, instead, is to use a link function to “link” the distribution mean μ that the dependent variable (Y) follows to the outcome of linear predictors (independent variables, or X). If we know the data distribution under which our data has been generated, GLMs provide a very robust approach to linear modeling that can encompass a wide range of data types.\
+
+In this lab, we will examine how to implement GLMs following two different distribution families (binomial, poisson). The goal is to gain a functional understanding of how to implement these models, view the model objects (which are similar to output of lm() in some ways, but differ in others), retreive the model fits, and perform some model diagnostics.\
+
+```{r}
+
+```
