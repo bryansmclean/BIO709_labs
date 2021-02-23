@@ -7,10 +7,198 @@ output: html_document
 
 ### A bit of background...
 
-Oure lecture on generalized additive models (GAMs) that these tools provide a robust modeling alternative when we encounter non-normal data distributions. Transformations on non-normal data are possible in some scenarios, but very complex transformations may be required which can negatively affect our ability to interpret results. The idea of GLM, instead, is to use a link function to “link” the distribution mean μ that the dependent variable (Y) follows to the outcome of linear predictors (independent variables, or X). If we know the data distribution under which our data has been generated, GLMs provide a very robust approach to linear modeling that can encompass a wide range of data types.\
+Our lecture on generalized additive models (GAMs) should have convinced you that these tools are useful extensions of the GLMs framework, especially well-adapted to nonlinear datasets. Transformations on non-normal data, or the use of link functions, are possible in many scenarios of non-linearity, but very complex relationships are more powerfully and directly handled within the GAM framework.\
 
-In this lab, we will examine how to implement GLMs following two different distribution families (binomial, poisson). The goal is to gain a functional understanding of how to implement these models, view the model objects (which are similar to output of lm() in some ways, but differ in others), retreive the model fits, and perform some model diagnostics.\
+In this lab, we will implement GAMs, build on our existing knowledge of model specification in R to construct GAM calls, consider GAM diagnostics, and plot GAM predictions (all very practical things). The goal is to gain a functional understanding of how and when to implement these models.\
+
+## PRELIMINARIES
+
+### Getting familiar with gam() help
+
+Prior to any data analysis, open the gam() and formula.gam() help pages to get (re)acquainted with model arguments. In the gam() help page, look over default arguments for *formula* (including how to specify smooths), *family* (the distribution of your data), and *method*. Note that *method* refers to how the smoothing parameter will be optimized; REML is what we will use today and its the default for more complex distribution families. In the formula.gam() help page, view typical arguments for the smooths themselves, especially the **k** parameter.
 
 ```{r}
-
+library(mgcv)
+?gam()
+?formula.gam()
 ```
+
+### Why go gam()?
+
+Nature is complex, and biologists don't have to go far to find funky data. While many of our data sets can be analyzed by conventional linear models, others cannot. In this quick example, generate random data (from a sine function) and explore why GAMs are immediately useful in this case.
+
+```{r}
+X = seq(0, 7.5, by = 0.05)
+Y = jitter(sin(X), amount = 1) # compute sin(X), but add random noise
+plot(x = X, y = Y)
+```
+
+Fitting a linear model to this data would obviously be a **poor** choice. But, lets do it anyway (and also plot the model fit, and examine diagnostics).
+
+```{r}
+# Construct a simple linear model
+m0 <- lm(Y ~ X)
+plot(x = X, y = Y)
+abline(m0, col = 'red4', lwd = 3, lty = 2)
+summary(m0) 
+```
+
+This model actually **does** explain a significant portion of the response. However, a glance at the diagnostics plots clearly indicates a violation of the normality assumption since residuals are unequally distributed about X, at different values of Y.
+
+```{r}
+par(mfrow = c(2,2))
+plot(m0)
+```
+
+## FITTING GAMs IN mgcv
+
+Lets instead fit a GAM to the data, using the gam() function in the **mcgv** package.
+
+```{r}
+g0 <- gam(Y ~ s(X, k = 10), method = 'REML') # More on k = 10 later...
+
+# Extract and plot the fitted values, against our original predictor (X)
+plot(x = X, y = Y) # the observed data
+lines(X, g0$fitted.values, lwd = 4, col = 'grey80') # the GAM fit
+```
+
+Your GAM should have a much better fit to the data than the linear model. But its important to also make sure it passes our normal diagnostic procedures. You can view the usual diagnostic plots using the function gam.check(). Plot these and check for near-normality in the residuals and homoscedasticity. It should still be obvious that issues with model fit remain, despite achieving much better fit in the GAM.
+
+```{r}
+par(mfrow=c(2,2))
+gam.check(g0)
+```
+
+Now insepct the GAM object. Calling summary() on the GAM object will give you the significance of the smooth term (along with any parametric terms, if you would have included them), along with the variance explained. Note that high levels of significance for predictors are common with GAMs, as the basis functions are constructed from the data themselves. In the summary, you can also view usual metrics of deviance explained and adjusted R2 (which should be much higher than the basic linear model you made above).
+
+```{r}
+summary(g0)
+```
+
+Recall that one of the main parameters required by the gam() function is **k**, essentially the dimension of the basis expansion on the predictor. The k term sets the upper limit on the degrees of freedom associated with a s() smooth (actually, its k-1). In the GAM above, we chose a value of k = 10, which should be sufficiently high because we are working over a somewhat limited range of X. In practice, a value of k too low will unecessarily constrain the model fit, whereas a value of k too high will not affect fit, and just means that individual basis functions get penalized more. The summary object above should list an **edf** (or, estimated degrees of freedom) of ~ 6, which is the degrees of freedom on 10 basis functions *after penalization*.
+
+You can quickly check how varying **k** impacts model construction, by starting from an unreasonably small number (say, 3).
+
+```{r}
+# Run models for small k
+g.k3 <- gam(Y ~ s(X, k = 3), method = 'REML')
+g.k4 <- gam(Y ~ s(X, k = 4), method = 'REML')
+g.k5 <- gam(Y ~ s(X, k = 5), method = 'REML')
+
+# Plot data and original GAM
+plot(x = X, y = Y)
+lines(X, g0$fitted.values, lwd = 3, col = 'gray50')
+
+# Plot the small k GAMs
+lines(X, g.k3$fitted.values, lwd = 3, col = 'yellow', lty = 2)
+lines(X, g.k4$fitted.values, lwd = 3, col = 'orange', lty = 2)
+lines(X, g.k5$fitted.values, lwd = 3, col = 'red', lty = 2)
+```
+
+## GAMs vs GLMs (and polynomials)
+
+Remember from our lecture that GAMs work by summing a series of basis functions (evaluated at small ranges of X) together. However, basis expansion is possible in a linear model framework as well, specifically by using quadratic or higher-order terms on X. This approach has some drawbacks - specifically that the polynomial terms are optimized across the entire range of X, which can lead to poor fit in some areas like ends of the data. Still, if the data are not *wildly* non-linear, this approach can work as well as GAMs do.
+
+Lets construct a higher-order linear model and compare to our original GAM. We start with 
+
+```{r}
+# Polynomial terms are specified with the poly() argument the following way:
+g.poly2 <- glm(Y ~ poly(X, degree = 2, raw = T), family = gaussian())
+g.poly3 <- glm(Y ~ poly(X, degree = 3, raw = T), family = gaussian())
+g.poly5 <- glm(Y ~ poly(X, degree = 5, raw = T), family = gaussian())
+
+# Plot data and original GAM
+plot(x = X, y = Y)
+lines(X, g0$fitted.values, lwd = 3, col = 'gray50')
+
+# Plot the polynomial GLMs
+lines(X, g.poly2$fitted.values, lwd = 3, col = 'blue', lty = 2)
+lines(X, g.poly3$fitted.values, lwd = 3, col = 'navyblue', lty = 2)
+lines(X, g.poly5$fitted.values, lwd = 3, col = 'purple3', lty = 2)
+```
+
+As expected, including higher-order terms on X results in better model fit, approaching our original GAM fit, and thus seems appropriate for our dataset. Inspect the diagnostics for the 5-term model, and compare to your previous GAM diagnostics. Also, while the diagnostics include residual plots, lets also plot a histogram of the residuals and inspect it for normality.
+
+```{r}
+par(mfrow=c(2,2))
+plot(g.poly5)
+
+# Histograms of the residual values from GAM and polynomial GLM
+par(mfrow=c(1,2))
+hist(g0$residuals) # the GAM residuals
+hist(g.poly5$residuals) # the GLM residuals
+```
+
+While the models are comparable, they each still suffer from slight deviations from predicted residual values. Also, the residuals do not strongly follow a gaussian distribution, suggesting that a transformation of our original data combined with GAMs or a higher-order GLM may be more approriate here.
+
+## THIS WEEK'S ASSIGNMENT \
+
+At this point, you should be familiar with the syntax and workflow necessary to set up GAMs in R using some of the more common distribution families and their associated link functions. Your assignment is to conduct a similar modeling workflow for a dataset of beaver (*Castor canadensis*) body temperatures using multiple predictors, and answer whether a lower-order polynomial model or GAMs provide a better fit to these time series data.
+
+You can load the **beaver1** dataset as follows. Be sure to use only data from one day, as the temperature data were collected intermittently for multiple days.
+
+```{r}
+library(datasets)
+beav <- beaver1[which(beaver1$day == 346), ]
+plot(beav$temp) # quick look at data distribution
+# You can look closer at the dataset properties by calling ?beaver1()
+```
+\
+\
+
+### **DO THE FOLLOWING:**\
+**1. Construct a GAM relating beaver body temperature to two predictors: time of day (a continuous variable) and activity pattern (a binary variable).** \
+\
+-- Use a k value of 10, and use 'REML' as the smoothing mechanism.\
+-- Do NOT include interaction terms in the model.\
+-- Use the capture.output() function to save the full model SUMMARY as a .txt file. Remember to name this file according to our convention listed in Canvas assignments.\
+\
+
+**2. Plot the GAM fit and standard error, along with empirical data.** \
+\
+-- The plot should be bivariate, with time (X) and temperature (Y) from your model.\
+-- In this plot, make sure to include standard error for the GAM fit (which is done automatically. In addition, apply shading to the standard error and change the color of the shading to something other than gray. See ?plot.gam() for the correct arguments for specifying this.\
+-- So, in summary, the plot should show:\
+    **a).** the bivariate plot of empirical data\
+    **b).** the GAM fit, with colored standard error\
+    **c).** a plot title that includes the variable names\
+-- Save this file as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments.\
+\
+
+**3. Examine the effects of the activity variable (a parametric, or non-smoothed term) in the model.**.\
+\
+-- The default in plot.gam() is to plot only the smooth term(s). However, you can use the **all.terms** argument in this function to produce plots of non-smoothed terms as well. Plot this term, and look at the slope here and back in the model summary. Does activity have a positive or negative effect on body temperature?? \
+-- Save this plot as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments.\
+\
+
+**4. Compare the beaver temp GAM to a linear model with polynomial terms.**\
+\
+-- Remember that basis expansion using ordered polynomials can be a good fit to some data, but even very high-order polynomials may not work for other data types. Construct a multiple linear model (using lm()) that predicts beaver temperature using a combination of a) a 3rd order polynomial on time, and b) activity.\
+-- Do the same, but this time using two higher-order polynomials on time. Use **degree = 5** and **degree = 7** for this.\
+-- Summarize the three linear model objects above using the summary() function, and choose the model with the **lowest (most negative)** AIC score. Use the capture.output() function to save this full model SUMMARY as a .txt file. Remember to name this file according to our convention listed in Canvas assignments.\
+\
+
+**5. Plot the GAMs and all 3 LMs, along with empirical data.** \
+\
+-- The plot should be bivariate, with time (X) and temperature (Y) from your model.\
+-- The plot should show:\
+    **a).** the bivariate plot of empirical data\
+    **b).** the GAM fit\
+    **c).** the LM fits, colored yellow/orange/red for degree 3/5/7\
+    **d).** a plot title that includes the variable names\
+-- Save this file as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments.\
+\
+\
+\
+\
+
+rmarkdown::render("./src/4_Generalized-additive-models.Rmd")
+
+
+
+
+
+
+
+
+
