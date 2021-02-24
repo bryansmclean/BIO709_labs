@@ -156,31 +156,31 @@ plot(beav$temp) # quick look at data distribution
 
 **2. Plot the GAM fit and standard error, along with empirical data.** \
 \
--- The plot should be bivariate, with time (X) and temperature (Y) from your model.\
+-- The plot should be bivariate, with time (X) and the smooth for temperature (Y) from your model.\
 -- In this plot, make sure to include standard error for the GAM fit (which is done automatically). However, please also apply shading to the standard error and change the color of the shading to something other than gray. See ?plot.gam() for the correct arguments for specifying this.\
 -- So, in summary, the plot should show:\
-    **a).** the bivariate plot of empirical data\
-    **b).** the GAM fit, with colored standard error\
-    **c).** a plot title that includes the variable names\
--- Save this file as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments.\
+    **a).** the GAM fit, with colored standard error\
+    **b).** a plot title that includes the variable names\
+-- Note that this plot will not be on the scale of your original response (Y) variable.
+-- Save the file as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments.\
 \
 
 **3. Examine the effects of the activity variable (a parametric, or non-smoothed term) in the model.**.\
 \
 -- The default in plot.gam() is to plot only the smooth term(s). However, you can use the **all.terms** argument in this function to produce plots of non-smoothed terms as well. Plot the efect of the activity term, and look at its slope here and back in the GAM summary. Does activity have a positive or negative effect on body temperature?? \
--- Save this plot as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments (no other plot formatting required).\
+-- Save this second plot (temp ~ activity) as an image (preferably .pdf) and name this file according to our convention listed in Canvas assignments (no other plot formatting required).\
 \
 
 **4. Compare the beaver temp GAM to a linear model with polynomial terms.**\
 \
--- Remember that basis expansion using ordered polynomials can be a good fit to some data, but even high-order polynomials may not work for other data. Explore this here. Construct a multiple linear model (using lm()) that predicts beaver temperature using a combination of a) a 3rd order polynomial on time, and b) activity.\
+-- Remember that basis expansion using ordered polynomials can be a good fit to some data, but even high-order polynomials may not work for other data. Explore this here. Construct a multiple linear model (using glm()) that predicts beaver temperature using a combination of a) a 3rd order polynomial on time, and b) activity.\
 -- Do the same, but this time using even higher-order polynomials on time. Make two models using **degree = 5** and **degree = 7** polys on time.\
 -- Summarize the three linear model objects above using the summary() function, and choose the best fit model (i.e,, with the **lowest (most negative)** AIC score). Use the capture.output() function to save this full model SUMMARY as a .txt file. Remember to name this file according to our convention listed in Canvas assignments.\
 \
 
 **5. Plot the original GAM and all 3 LMs, along with empirical data.** \
 \
--- The plot should be bivariate, with time (X) and temperature (Y) from your model.\
+-- The plot should be bivariate, with time (X) and temperature (Y) from your model. To get the four models (1 GAM, 4 GLMs) on the same scale, be sure and plot the fitted values contained within each model object.\
 -- The plot should show:\
     **a).** the bivariate plot of empirical data\
     **b).** the GAM fit (without std error)\
